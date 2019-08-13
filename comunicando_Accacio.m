@@ -30,12 +30,11 @@ flushinput( s_port );
 %%
 
 fprintf('\n connected...\n');
-% pause
 t = tic;
 
 % Run for [tsim] seconds
 
-tsim = 1000;
+tsim = 1000.0;
 lat = []; lon = []; hdg = [];
 vx  = []; vy  = []; vz  = [];
 
@@ -47,7 +46,7 @@ while toc(t) <  tsim
         [parse, msg] = parse.byte_stream(b');        
        
         for i = 1:length( msg )
-            fprintf( 'Msg (%d) %s\n', msg{i}.get_msgid(), class(msg{i}) );
+%             fprintf( 'Msg (%d) %s\n', msg{i}.get_msgid(), class(msg{i}) );
             
             if msg{i}.get_msgid() == 33
                 px4 = msg{i};
@@ -57,19 +56,20 @@ while toc(t) <  tsim
 %                 fprintf('Vy  :     %.4f \t Vz     :   %.4f\n', px4.get_prop_vy(), px4.get_prop_vz())
 %                 fprintf('Heading:  %.4f \n\n\n', px4.get_prop_hdg)
                 
-                %[vx vy vyaw]                
+                % Valocidades [vx vy vyaw]                
                     vx      = [vx, px4.get_prop_vx()];
                     vy      = [vy, px4.get_prop_vy()];
                     %vyaw    = [vyaw px4.get_prop_hdg()];
                 
-                %[lat lon hdg]
+                % Posição [lat lon hdg]
                     lat = [lat, px4.get_prop_lat()];
                     lon = [lon, px4.get_prop_lon()];
                     hdg = [hdg, px4.get_prop_hdg()];
                     
             elseif msg{i}.get_msgid() == 35
-                fprintf('Channel 06: %.4f \n', get_prop_chan6_raw())
-                fprintf('Time (ms):  %.4f\n', px4.get_prop_time_boot_ms())
+                px4 = msg{i};
+                fprintf('Ch01: %.4f\t Ch02: %.4f\t Ch04: %.4f\t Ch06: %.4f \n', px4.get_prop_chan1_raw(), px4.get_prop_chan2_raw(), px4.get_prop_chan4_raw(), px4.get_prop_chan6_raw()  )
+%                 fprintf('Time (ms):  %.4f\n',  px4.get_prop_time_boot_ms())
             end
         end
         

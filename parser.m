@@ -124,7 +124,7 @@ classdef parser
             msg_id = msg_bytes( mavlink.MSGID_BYTE );
             msg = mavlink.get_message_type( msg_id );
             
-%             disp(msg_id)
+%             disp(msg_id) % p/ Debugar!!!
             
             if isempty( msg )
                 msg = mavlink_msg( msg_id );
