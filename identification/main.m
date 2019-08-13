@@ -2,25 +2,26 @@
 %%%%%%%%%%%%%%%%%%%%% --- Lendo placa por Mavlink --- %%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    clear; clc; close all; instrreset;
 
-%% Add paths
-
-    addpath('/home/accacio/MAVLink_Matlab/ardupilotmega')
-    addpath('/home/accacio/MAVLink_Matlab/common')
+%% Initializations ...
+    main_init;
 
 %% CHANGE THESE
 
-    serial_port_name = '/dev/ttyACM1';
-    serial_baud_rate = 115200;
+    % Settings - Port USB
+        serial_port_name = '/dev/ttyACM1';
+        serial_baud_rate = 115200;
+    % Simulation Time
+        tsim = 30.0;     
 
 %% DO NOT CHANGE BELOW THIS POINT
 
     fprintf('\n connecting...');
+    
+    % Open serial connection
     parse = parser();
-
-% Open serial connection
     s_port = serial( serial_port_name );
+    
     s_port.BaudRate = serial_baud_rate;
     s_port.InputBufferSize = 10000;
 
@@ -28,40 +29,12 @@
     flushinput( s_port );
     fprintf('\n connected...\n');
 
-%% VARIABLES
-    
-    % Simulation Time
-        tsim = 100.0;        
-        t_gp = [];
-        
-    %   Position  and Orientation
-        lat   = [];                     % msg - Gloabal Position int
-        lon   = [];                     % msg - Gloabal Position int
-        hdg   = [];                     % msg - Gloabal Position int
-        
-        roll  = [];                     % msg - Attitude 
-        pitch = [];                     % msg - Attitude
-        yaw   = [];                     % msg - Attitude
-        
-    % Velocidades
-        vx  = [];                       % msg - Gloabal Position int
-        vy  = [];                       % msg - Gloabal Position int
-        
-        t_att      = [];                % msg - Attitude 
-        rollspeed  = [];                % msg - Attitude 
-        pitchspeed = [];                % msg - Attitude
-        yawspeed   = [];                % msg - Attitude
-        
-    % Radio Control
-        t_rp = [];
-        ch1  = [];
-        ch2  = [];
-        ch4  = [];
-        ch6  = [];
-
 %% SIMULATION
 
 t = tic;
+fprintf('\n waiting simulation (Press any on the keyboard) ...\n'), pause
+fprintf('\n Experiment Started ...\n');
+
 while toc(t) <  tsim
     
     if s_port.BytesAvailable > 100
@@ -84,8 +57,8 @@ while toc(t) <  tsim
                 % Posição [lat lon hdg]
                     lat = [lat, px4.get_prop_lat()];
                     lon = [lon, px4.get_prop_lon()];
-                    hdg = [hdg, px4.get_prop_hdg()];
-                    
+                    hdg = [hdg, px4.get_prop_hdg()];                  
+                                        
             elseif msg{i}.get_msgid() == 35    % RC_CHANNELS_RAW
                 px4 = msg{i};
                 
@@ -130,52 +103,34 @@ while toc(t) <  tsim
 end
 
 fclose( s_port );
+fprintf('\n Experiment ended...\n');
+
+%% SAVE EXPERIMENT - Output file ".mat"
 
 
-%% SAVE EXPERIMENT
-
-
-%% Output file ".mat"
-    % Time treated
-        
+    % Time treated        
         t_gp  = double([t_gp  - t_gp(1) ])/1000;
         t_rp  = double([t_rp  - t_rp(1) ])/1000;
         t_att = double([t_att - t_att(1)])/1000;
         
+    % velocities: NED to Body
+        vx = double(vx) * (1e-2);
+        vy = double(vy) * (1e-2);    
+        [vxb,vyb] =  f_NED_to_body(vx,vy,double(hdg/100));
+    
     % Derivation : Speed Yaw
         tau = 10;
-        r = filtro(t_gp, hdg/100, tau); % [rad/s]
+        r = filter_PB(t_gp, double(hdg/100), tau); % [rad/s]
+        
     % object: Data
-        data.time = [t_gp; t_rp; t_att ];
-        data.pose = [ lat;  lon; hdg  ];
-        data.vel  = [  vx;  vy; yawspeed  ];        
-        data.F    = [ ch2; ch1; ch4; ch6];           
+        data.time   = [t_gp; t_rp; t_att ];
+        data.pose_i = [ lat;  lon; hdg   ];
+        data.vel_i  = [  vx;  vy; yawspeed  ];        
+        data.vel_b  = [ vxb; vyb; yawspeed  ];        
+        data.F      = [ ch2; ch1; ch4; ch6  ];           
 
     % Save result
         save('data_treated.mat','data');
         
-%% Plots
-
-figure
-subplot(321),plot(t_gp,lat,'linewidth',2), grid minor, ylabel('Lat')
-subplot(323),plot(t_gp,lon,'linewidth',2), grid minor, ylabel('Lon')
-subplot(325),plot(t_gp,hdg/100,'linewidth',2), grid minor, ylabel('\psi [deg]')
-
-subplot(322),plot(t_gp,vx,'linewidth',2), grid minor, ylabel(' v_{x} [m/s]  ')
-subplot(324),plot(t_gp,vy,'linewidth',2), grid minor, ylabel(' v_{y} [m/s]  ')
-subplot(326),plot(t_gp, r,'linewidth',2), grid minor, ylabel(' r     [rad/s]')
-
-figure
-subplot(321), plot(t_att, rad2deg(roll)  ,'linewidth',2), grid minor, ylabel('\theta [deg]')
-subplot(323), plot(t_att, rad2deg(pitch) ,'linewidth',2), grid minor, ylabel('\phi [deg]')
-subplot(325), plot(t_att, rad2deg(yaw  ) ,'linewidth',2), grid minor, ylabel('\psi [deg]')
-
-subplot(322), plot(t_att, rollspeed ,'linewidth',2), grid minor, h1 = ylabel('$\textbf{$\dot{\theta}$} [rad/s]$');set(h1, 'Interpreter', 'latex');
-subplot(324), plot(t_att, pitchspeed,'linewidth',2), grid minor, h1 = ylabel('$\dot{\phi}$ [rad/s]');set(h1, 'Interpreter', 'latex');
-subplot(326), plot(t_att, yawspeed  ,'linewidth',2), grid minor, h1 = ylabel('$\dot{\psi}$ [rad/s]');set(h1, 'Interpreter', 'latex');
-
-figure
-subplot(221), plot(t_rp, ch2, 'linewidth',2), grid minor, ylabel('Ch2 [PWM]')
-subplot(223), plot(t_rp, ch1, 'linewidth',2), grid minor, ylabel('Ch1 [PWM]')
-subplot(222), plot(t_rp, ch4, 'linewidth',2), grid minor, ylabel('Ch4 [PWM]')
-subplot(224), plot(t_rp, ch6, 'linewidth',2), grid minor, ylabel('Ch6 [PWM]')
+%% Plots (Fcn)
+    plots;
